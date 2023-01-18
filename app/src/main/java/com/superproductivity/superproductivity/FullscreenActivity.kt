@@ -1,16 +1,19 @@
 package com.superproductivity.superproductivity
 
-import android.app.AlertDialog
+import android.app.Activity
+import android.app.Person
+import android.content.DialogInterface
 import android.content.Intent
-import android.net.Uri
+import android.net.http.SslError
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.webkit.*
 import android.widget.FrameLayout
-import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import com.anggrayudi.storage.SimpleStorageHelper
+
 
 /**
  * An example full-screen activity that shows and hides the system UI (i.e.
@@ -77,96 +80,34 @@ class FullscreenActivity : AppCompatActivity() {
 
     private fun initWebView() {
         webView = (application as App).wv
-        val url: String
-        if (BuildConfig.DEBUG) {
-            //url = "https://app.super-productivity.com"
-            // for debugging locally run web server
-            url = "http://10.0.2.2:4200"
-            Toast.makeText(this, "DEBUG: $url", Toast.LENGTH_SHORT).show()
-            webView.clearCache(true)
-            webView.clearHistory()
-            WebView.setWebContentsDebuggingEnabled(true);
-        } else {
-            url = "https://app.super-productivity.com"
-        }
-        webView.loadUrl(url)
-        supportActionBar?.hide()
-        javaScriptInterface = JavaScriptInterface(this)
-        webView.addJavascriptInterface(javaScriptInterface, WINDOW_INTERFACE_PROPERTY)
-        if (BuildConfig.FLAVOR.equals("fdroid")) {
-            webView.addJavascriptInterface(javaScriptInterface, WINDOW_PROPERTY_F_DROID)
-            // not ready in time, that's why we create a second JS interface just to fill the prop
-            // callJavaScriptFunction("window.$WINDOW_PROPERTY_F_DROID=true")
-        }
-        webView.webViewClient = object : WebViewClient() {
+        val webSettings = webView.settings
+        webSettings.javaScriptEnabled = true
+        webSettings.useWideViewPort = true
+        webSettings.loadWithOverviewMode = true
+        webSettings.domStorageEnabled = true
 
-            @Deprecated("Deprecated in Java")
-            override fun shouldOverrideUrlLoading(view: WebView, url: String): Boolean {
-                Log.v("TW", url)
+        webView.webViewClient = WebViewController(this)
+        webView.loadUrl("http://10.0.2.2:4200")
+    }
 
-                return if (url.startsWith("http://") || url.startsWith("https://")) {
-                    if (url.contains("super-productivity.com") || url.contains("localhost") || url.contains(
-                            "10.0.2.2:4200"
-                        )
-                    ) {
-                        false
-                    } else {
-                        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-                        true
-                    }
-                } else {
-                    false
-                }
-            }
+    class WebViewController(activity: Activity) : WebViewClient() {
+        private val activity: Activity = activity
 
-            override fun shouldInterceptRequest(
-                view: WebView?,
-                request: WebResourceRequest?
-            ): WebResourceResponse? {
-                if (request?.isForMainFrame == false && request.url?.path?.contains("assets/icons/favicon") == true) {
-                    try {
-                        return WebResourceResponse("image/png", null, null)
-                    } catch (e: Exception) {
-                        e.printStackTrace()
-                    }
-                }
-                return null
-            }
+        override fun shouldOverrideUrlLoading(view: WebView, url: String): Boolean {
+            view.loadUrl(url)
+            return true
         }
 
-        webView.webChromeClient = object : WebChromeClient() {
-            override fun onJsAlert(
-                view: WebView,
-                url: String,
-                message: String,
-                result: JsResult
-            ): Boolean {
-                Log.v("TW", "onJsAlert")
-                val builder: AlertDialog.Builder = AlertDialog.Builder(this@FullscreenActivity)
-                builder.setMessage(message)
-                    .setNeutralButton("OK") { dialog, _ ->
-                        dialog.dismiss()
-                    }
-                    .create()
-                    .show()
-                result.cancel()
-                return super.onJsAlert(view, url, message, result)
-            }
-
-            override fun onJsConfirm(
-                view: WebView,
-                url: String,
-                message: String,
-                result: JsResult
-            ): Boolean {
-                AlertDialog.Builder(this@FullscreenActivity)
-                    .setMessage(message)
-                    .setPositiveButton(android.R.string.ok) { _, _ -> result.confirm() }
-                    .setNegativeButton(android.R.string.cancel) { _, _ -> result.cancel() }
-                    .create()
-                    .show()
-                return true
-            }
+        override fun onReceivedSslError(view: WebView, handler: SslErrorHandler, error: SslError) {
+            val builder: AlertDialog.Builder =
+                AlertDialog.Builder(activity)
+            builder.setMessage("Error")
+            builder.setPositiveButton("Continue",
+                DialogInterface.OnClickListener { dialog, which -> handler.proceed() })
+            builder.setNegativeButton("Cancel",
+                DialogInterface.OnClickListener { dialog, which -> handler.cancel() })
+            val dialog: AlertDialog = builder.create()
+            dialog.show()
         }
     }
 
